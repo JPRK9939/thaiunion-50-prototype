@@ -430,7 +430,7 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 @media (max-width:900px){.map-grid{grid-template-columns:1fr}.map-box{min-height:400px}}
 
 /* ---------- 7. closing ---------- */
-#future{min-height:100vh;background:linear-gradient(to bottom,#00163a00 62%,#00163a 100%),radial-gradient(70% 60% at 50% 50%,#1a4aa8 0%,#002654 62%,#00163a 100%);color:#fff;display:grid;place-items:center;text-align:center;padding:120px 16px;position:relative;overflow:hidden}
+#future{min-height:100vh;background:linear-gradient(to bottom,#00163a00 62%,#00163a 100%),radial-gradient(70% 60% at 50% 50%,#1a4aa8 0%,#002654 62%,#00163a 100%);color:#fff;display:grid;place-items:center;text-align:center;padding:120px 16px;position:relative;overflow-x:clip;overflow-y:visible}   /* the ring's glow may spill into the dark loop below instead of being cut at the edge */
 .ring{position:absolute;left:50%;top:55%;width:min(80vw,640px);aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 2px #82c7eb66,0 0 80px 10px #4aabe055,inset 0 0 80px 10px #4aabe033;animation:breathe 6s var(--ease-io) infinite}
 .ring:after{content:'';position:absolute;inset:-14px;border-radius:50%;border:2px solid transparent;border-top-color:var(--yellow);animation:spin 8s linear infinite}
 @keyframes breathe{50%{transform:translate(-50%,-50%) scale(1.04)}}
@@ -1441,7 +1441,7 @@ const lu=$('lineup'),luCanvas=$('lu-canvas'),luStick=$('luStick');
 const r3=makeRenderer(luCanvas,{alpha:true});const s3=studio(r3);
 const cam3=new THREE.PerspectiveCamera(28,1,.1,100);
 const luItems=CAT_KEYS.map((k,i)=>{const pk=buildPack(BR[CATS[k].hero]);const h=new THREE.Group();h.add(pk.g);s3.add(h);h.userData.i=i;const ped=plinth(pk);s3.add(ped);return{k,pk,h,ped}});
-let luAct=0,luShown=-1;
+let luAct=0,luShown=-1,luPrev=null,luSwing=0;
 $('luNav').innerHTML=CAT_KEYS.map((k,i)=>`<button style="--c:${CATS[k].c}" data-i="${i}"><span>0${i+1}</span>${CATS[k].label}</button>`).join('');
 const luY=i=>lu.offsetTop+range(lu)*((i+.25)/2.5);
 /* picking a room: first click glides it to the centre; clicking it again once centred walks in */
@@ -1476,8 +1476,9 @@ function updateLineup(t,dt){
   const ai=Math.round(luAct);if(ai!==luShown)showLu(ai);
   const w=luCanvas.clientWidth,h=luCanvas.clientHeight,asp=w/h,port=asp<.8;
   const spacing=port?3.1:4.4;
+  const gap=spacing*1.25,rise=port?.3:.55,base=port?-.2:-.5;
   luItems.forEach((it,i)=>{const d=i-luAct,ad=Math.min(1.6,Math.abs(d));
-    it.h.position.set(d*spacing,d*(port?.3:.55)-(port?.2:.5),-ad*1.6);
+    it.h.position.set((i-1)*gap,(i-1)*rise+base,0);
     const s=lerp(1,.6,Math.min(1,ad))*(port?.82:.86);it.h.scale.setScalar(s);
     const lean=ad<.5?1:.35;it.h.rotation.set(.2+ptr.sy*.12*lean,ptr.sx*.32*lean,-d*.12-ptr.sx*.05*lean);
     /* spin is integrated, so changing speed never jumps the angle */
@@ -1485,8 +1486,13 @@ function updateLineup(t,dt){
     it.pk.g.position.y=Math.sin(t*1.2+i)*.04*MOT;
     it.ped.position.set(it.h.position.x,it.h.position.y+it.ped.userData.top*s,it.h.position.z);it.ped.scale.setScalar(s);
   });
-  const dist=port?19:13.2;const zt=luZoomT0?ss(0,1,(performance.now()-luZoomT0)/1000):0,ax=luItems[ai].h.position.x,ay=luItems[ai].h.position.y;
-  cam3.position.set(ax*zt,1.4-zt*.8+ay*zt,lerp(dist,dist*.28,zt));cam3.lookAt(ax*zt,(port?-.4:-.15)*(1-zt)+ay*zt,0);
+  /* camera: glides to the product in focus and views each room from its own angle (left room from the left, right from the right),
+     leaning a little further into the direction of travel while it moves */
+  const v=(luAct-(luPrev??luAct))/Math.max(dt,1e-3);luPrev=luAct;luSwing+=(clamp(v*.35,-.22,.22)-luSwing)*Math.min(1,dt*3);
+  const dist=port?19:13.2,fx=(luAct-1)*gap,fy=(luAct-1)*rise,ang=-(luAct-1)*.2+luSwing*MOT;
+  const zt=luZoomT0?ss(0,1,(performance.now()-luZoomT0)/1000):0,ax=luItems[ai].h.position.x,ay=luItems[ai].h.position.y;
+  const cx=fx+Math.sin(ang)*dist,cz=Math.cos(ang)*dist;
+  cam3.position.set(lerp(cx,ax,zt),1.4+fy-zt*.8+(ay-fy)*zt,lerp(cz,dist*.28,zt));cam3.lookAt(lerp(fx,ax,zt),(port?-.4:-.15)*(1-zt)+lerp(fy,ay,zt)+(port?.2:.5)*(1-zt)-(port?.2:.5)*(1-zt),0);
   r3.render(s3,cam3);
 }
 
@@ -1498,12 +1504,16 @@ const r2=makeRenderer(canCanvas,{alpha:true});const s2=studio(r2);
 const cam2=new THREE.PerspectiveCamera(30,1,.1,100);
 const pivot=new THREE.Group();s2.add(pivot);
 /* plain studio room: floor, back wall and two side walls, matte, tinted with the room colour */
-const ROOM={floor:-4.6,back:-12,side:17,h:28};
-const wallMat=new THREE.MeshStandardMaterial({color:'#e3f1fb',roughness:.96,metalness:0,envMapIntensity:.3});
-const sideMat=new THREE.MeshStandardMaterial({color:'#d9e9f5',roughness:.96,metalness:0,envMapIntensity:.3});
-const floorMat=new THREE.MeshStandardMaterial({color:'#cfe2f0',roughness:.9,metalness:0,envMapIntensity:.3});
-{const g=new THREE.Group();s2.add(g);const {floor:FY,back:BZ,side:SX,h:H}=ROOM,D=46;
+const ROOM={floor:-4.6,back:-14,side:8.6,h:13.5};
+/* soft studio falloff: bright centre, gently darker towards the edges/corners (like an empty photo cyclorama) */
+const softTex=canvasTex(512,512,(g,w,h)=>{const gr=g.createRadialGradient(w/2,h*.45,w*.05,w/2,h/2,w*.75);gr.addColorStop(0,'#ffffff');gr.addColorStop(.6,'#eef0f2');gr.addColorStop(1,'#c9ced4');g.fillStyle=gr;g.fillRect(0,0,w,h)});
+const wallMat=new THREE.MeshStandardMaterial({color:'#e3f1fb',map:softTex,emissiveMap:softTex,roughness:.96,metalness:0,envMapIntensity:.3});
+const sideMat=new THREE.MeshStandardMaterial({color:'#d9e9f5',map:softTex,emissiveMap:softTex,roughness:.96,metalness:0,envMapIntensity:.3});
+const floorMat=new THREE.MeshStandardMaterial({color:'#cfe2f0',map:softTex,emissiveMap:softTex,roughness:.9,metalness:0,envMapIntensity:.3});
+const studioG=new THREE.Group();
+{const g=studioG;s2.add(g);const {floor:FY,back:BZ,side:SX,h:H}=ROOM,D=30;
   const fl=new THREE.Mesh(new THREE.PlaneGeometry(SX*2,D).rotateX(-Math.PI/2),floorMat);fl.position.set(0,FY,BZ+D/2);g.add(fl);
+  const ce=new THREE.Mesh(new THREE.PlaneGeometry(SX*2,D).rotateX(Math.PI/2),sideMat);ce.position.set(0,FY+H,BZ+D/2);g.add(ce);
   const bw=new THREE.Mesh(new THREE.PlaneGeometry(SX*2,H),wallMat);bw.position.set(0,FY+H/2,BZ);g.add(bw);
   [-1,1].forEach(sd=>{const w=new THREE.Mesh(new THREE.PlaneGeometry(D,H).rotateY(-sd*Math.PI/2),sideMat);w.position.set(sd*SX,FY+H/2,BZ+D/2);g.add(w)});
   const fill=new THREE.PointLight(0xffffff,40,60,1.6);fill.position.set(0,8,6);g.add(fill);}
@@ -1617,6 +1627,7 @@ function updateBrand(t,dt){
     s.ped.position.set(tmpP.x,tmpP.y+s.ped.userData.top*Math.max(psc,.001)-ss(.05,.9,f)*7-(1-ss(0,1,(s.ap??1)*1.6))*5,tmpP.z);s.ped.scale.setScalar(sel?lerp(rowS,1,f):rowS);
   });
   pivot.position.y=-e*.75-(1-f)*.35;pivot.rotation.set(ptr.sy*.12,ptr.sx*.28,0);pivot.position.x=ptr.sx*.25;
+  studioG.scale.set(clamp(asp/1.9,.55,1.35),1,1);
   const dist=(port?24:asp<1.2?14.5:12.6)*lerp(1.08,1,f);cam2.position.set(0,dist*.28,dist);cam2.lookAt(0,port?lerp(-.6,-2.2,f):-.1,0);
   /* HTML that follows the scene */
   const lab=$('rowLabels').children;
