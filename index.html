@@ -187,6 +187,13 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .row-labels button:hover:after{width:calc(100% - 12px)}
 .stage-bottom{position:absolute;bottom:24px;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:10px;z-index:5;padding:0 16px}
 .cats{display:flex;gap:4px;background:#fff;padding:5px;border-radius:999px;box-shadow:0 8px 24px #0d1f4514}
+/* the room switcher lives top-left, apart from the brand chips at the bottom, so the two levels never read as one */
+.room-nav{position:absolute;left:clamp(14px,3vw,28px);top:18px;z-index:6;display:flex;align-items:center;gap:12px}
+.room-nav .label{color:var(--ink-3);font-size:11px}
+.room-nav .cats{padding:4px;box-shadow:0 6px 18px #0d1f4512}
+.room-nav .cats button{min-height:36px;padding:0 14px;font-size:13px;display:inline-flex;align-items:center;gap:8px}
+.room-nav .cats button:before{content:'';width:8px;height:8px;border-radius:50%;background:var(--c)}
+.room-nav .cats button.on:before{background:#fff}
 .chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;transition:opacity var(--d3) var(--ease-out)}
 .chips button{min-height:44px;padding:0 16px;border-radius:999px;border:2px solid var(--cat);font-weight:600;font-size:var(--fs-sm);color:var(--navy);background:#ffffffcc;transition:background var(--d2) var(--ease-out),color var(--d2)}
 .chips button.on{background:var(--cat);color:#fff}
@@ -660,6 +667,7 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 <!-- ============ 3. BRANDS: row of brands → exploded hero product ============ -->
 <section id="brands" aria-label="Brands">
   <div class="stick museum">
+    <nav class="room-nav" aria-label="Switch room"><span class="label">Rooms</span><div class="cats" id="cats" role="group" aria-label="Rooms"></div></nav>
     <div class="cat-title" id="catTitle"></div>
     <div class="bg-name" id="bgName" aria-hidden="true"></div>
     <canvas id="can-canvas" role="img" aria-label="3D product, drag to rotate, scroll to open"></canvas>
@@ -669,7 +677,6 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
     <div class="drag label" id="dragHint">⟲ Drag to rotate · scroll to open</div>
     <div class="stage-bottom">
       <div class="chips" id="chips" role="group" aria-label="Brands in this room"></div>
-      <div class="cats" id="cats" role="group" aria-label="Rooms"></div>
     </div>
   </div>
 </section>
