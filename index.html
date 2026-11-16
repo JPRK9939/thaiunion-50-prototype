@@ -115,7 +115,7 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 #lineup .stick{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden;--wall:var(--lu-bg,#e3f1fb);transition:--wall 1.1s var(--ease-io)}
 /* gallery room: lit wall with panel joints, skirting line, polished floor */
 .museum{background:linear-gradient(to bottom,color-mix(in srgb,var(--wall) 70%,#ffffff) 0%,var(--wall) 55%,color-mix(in srgb,var(--wall) 90%,#0d1f45) 100%)}
-#lineup .lu-haze{position:absolute;inset:0;z-index:5;pointer-events:none;background:linear-gradient(#fff 0%,#ffffffcc 10%,#ffffff00 34%)}
+#lineup .lu-haze{position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(#fff 0%,#ffffffd9 7%,#ffffff80 15%,#ffffff00 30%)}
 #lu-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .lu-info{position:absolute;left:clamp(16px,4vw,56px);top:clamp(86px,13vh,130px);width:min(340px,calc(100vw - 32px));z-index:3}
 .lu-info .label{color:var(--ink-3)}
@@ -160,6 +160,21 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 
 /* ---------- 3. brand stage ---------- */
 #brands{height:560vh;position:relative}
+.room-page{position:fixed;inset:0;z-index:60;background:var(--mist);visibility:hidden;transform:translateY(100%);transition:transform .8s var(--ease-io),visibility 0s linear .8s}
+.room-page.open{visibility:visible;transform:none;transition:transform .8s var(--ease-io),visibility 0s}
+.room-page.instant{transition:none}
+.room-page.leave{transform:translateY(-100%)}
+.rp-scroll{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
+.rp-scroll::-webkit-scrollbar{display:none}
+.rp-end{height:75vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:linear-gradient(var(--mist),#fff);color:var(--navy)}
+.rp-end .label{color:var(--ink-3)}
+.rp-end i{font-style:normal;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;border:1.5px solid var(--navy);animation:rpBob 1.6s var(--ease-io) infinite}
+@keyframes rpBob{50%{transform:translateY(6px)}}
+.rp-back{position:absolute;left:50%;top:22px;transform:translateX(-50%);z-index:5;display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 14px 0 8px;border-radius:999px;background:#ffffffd9;backdrop-filter:blur(8px);box-shadow:0 6px 16px #0d1f4514;color:var(--navy);font-weight:600;font-size:13px;letter-spacing:.1em;text-transform:uppercase;opacity:0;pointer-events:none;transition:opacity .4s var(--ease-out),background var(--d2)}
+.rp-back i{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--navy);color:#fff;font-style:normal}
+.room-page.focus .rp-back{opacity:1;pointer-events:auto}
+.rp-close{position:absolute;right:clamp(14px,3vw,28px);top:18px;z-index:5;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:#fff;color:var(--navy);box-shadow:0 6px 16px #0d1f4518;transition:transform var(--d2) var(--ease-out)}
+.rp-close:hover{transform:rotate(90deg)}
 #brands .stick{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden;--wall:var(--catSoft);transition:--wall 1.1s var(--ease-io)}
 #can-canvas{position:absolute;inset:0;width:100%;height:100%;cursor:grab;touch-action:pan-y;display:block}
 #can-canvas:active{cursor:grabbing}
@@ -543,22 +558,7 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
   </div>
 </section>
 
-<!-- ============ 3. BRANDS: row of brands → exploded hero product ============ -->
-<section id="brands" aria-label="Brands">
-  <div class="stick museum">
-    <div class="cat-title" id="catTitle"></div>
-    <div class="bg-name" id="bgName" aria-hidden="true"></div>
-    <canvas id="can-canvas" role="img" aria-label="3D product, drag to rotate, scroll to open"></canvas>
-    <div class="row-labels" id="rowLabels"></div>
-    <div class="info" id="info"><div class="side l" id="sideL"></div><div class="side r" id="sideR"></div></div>
-    <ul class="layers label" id="layers" aria-label="Pack layers"></ul>
-    <div class="drag label" id="dragHint">⟲ Drag to rotate · scroll to open</div>
-    <div class="stage-bottom">
-      <div class="chips" id="chips" role="group" aria-label="Brands in this room"></div>
-      <div class="cats" id="cats" role="group" aria-label="Rooms"></div>
-    </div>
-  </div>
-</section>
+
 
 <!-- ============ 4. BRAND MILESTONES (CMS) ============ -->
 <section id="legacy" aria-labelledby="legTitle">
@@ -654,6 +654,30 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
     <div class="label" id="loopLabel">Back to where it began · 1977</div>
   </div>
 </section>
+<!-- ============ ROOM PAGE: each room opens as its own page (brands → product → explode); scroll past the end to return ============ -->
+<div class="room-page" id="roomPage" aria-hidden="true" data-lenis-prevent>
+  <div class="rp-scroll" id="rpScroll">
+<!-- ============ 3. BRANDS: row of brands → exploded hero product ============ -->
+<section id="brands" aria-label="Brands">
+  <div class="stick museum">
+    <div class="cat-title" id="catTitle"></div>
+    <div class="bg-name" id="bgName" aria-hidden="true"></div>
+    <canvas id="can-canvas" role="img" aria-label="3D product, drag to rotate, scroll to open"></canvas>
+    <div class="row-labels" id="rowLabels"></div>
+    <div class="info" id="info"><div class="side l" id="sideL"></div><div class="side r" id="sideR"></div></div>
+    <ul class="layers label" id="layers" aria-label="Pack layers"></ul>
+    <div class="drag label" id="dragHint">⟲ Drag to rotate · scroll to open</div>
+    <div class="stage-bottom">
+      <div class="chips" id="chips" role="group" aria-label="Brands in this room"></div>
+      <div class="cats" id="cats" role="group" aria-label="Rooms"></div>
+    </div>
+  </div>
+</section>
+    <div class="rp-end" id="rpEnd"><span class="label">Continue the journey</span><i aria-hidden="true">↓</i></div>
+  </div>
+  <button class="rp-back" id="rpBack" aria-label="Back to all brands in this room"><i aria-hidden="true">←</i>All brands</button>
+  <button class="rp-close" id="rpClose" aria-label="Close room and return to all rooms"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="1.8" fill="none"/></svg></button>
+</div>
 <div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="Packaging gallery" data-lenis-prevent>
   <div class="lb-bg" data-close><div class="lb-wall" id="lbWall"></div></div>
   <button class="lb-x" data-close aria-label="Close gallery"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="1.8" fill="none"/></svg></button>
@@ -1518,7 +1542,7 @@ const tmpV=new THREE.Vector3();
 function project(obj,cam,canvas,yOff=0){obj.getWorldPosition(tmpV);tmpV.y+=yOff;tmpV.project(cam);return[(tmpV.x*.5+.5)*canvas.clientWidth,(-tmpV.y*.5+.5)*canvas.clientHeight]}
 let p3=0;
 function updateLineup(t,dt){
-  {const r=lu.getBoundingClientRect();$('luHaze').style.opacity=clamp(r.top/(innerHeight*.6));}
+  {const r=lu.getBoundingClientRect();}
   luAct+=(luTarget-luAct)*Math.min(1,dt*(RM?60:3.2));luOv+=((luMode==='overview'?1:0)-luOv)*Math.min(1,dt*(RM?60:2.6));
   const ai=Math.round(luAct);if(ai!==luShown)showLu(ai);
   const w=luCanvas.clientWidth,h=luCanvas.clientHeight,asp=w/h,port=asp<.8;
@@ -1581,7 +1605,37 @@ function buildStage(){
   $('rowLabels').innerHTML=stage.map(s=>`<button data-b="${s.k}">${BR[s.k].thai||BR[s.k].name}${BR[s.k].thai?`<small>${BR[s.k].name}</small>`:''}</button>`).join('');
 }
 const brandFocusY=()=>brands.offsetTop+range(brands)*.32;
-$('rowLabels').onclick=e=>{const b=e.target.closest('button');if(b){selectBrand(b.dataset.b);scrollToY(brandFocusY(),1.6)}};
+/* the room page: its own scroll (brands row → product → explode); reaching the end slides it away onto the main page */
+const rp=$('roomPage'),rps=$('rpScroll');let rpLeaving=false;
+const rpOpen=()=>rp.classList.contains('open');
+function openRoomPage(instant,noPush){rp.classList.remove('leave');rp.classList.toggle('instant',!!instant);rp.classList.add('open');rp.setAttribute('aria-hidden','false');
+  rps.scrollTop=brands.offsetTop+range(brands)*.04;lenis&&lenis.stop();document.documentElement.style.overflow='hidden';
+  if(!noPush)rpPush({rp:state.cat});requestAnimationFrame(()=>rp.classList.remove('instant'))}
+function closeRoomPage(next){if(!rpOpen()||rpLeaving)return;rpLeaving=true;
+  if(next){/* the main page is already at the next chapter underneath, the room slides up and away */
+    document.documentElement.style.overflow='';lenis&&lenis.start();
+    const y=$('legacy').offsetTop;if(lenis)lenis.scrollTo(y,{immediate:true,force:true});scrollTo({top:y,behavior:'instant'});rp.classList.add('leave')}
+  rp.classList.remove('open');rp.setAttribute('aria-hidden','true');document.documentElement.style.overflow='';lenis&&lenis.start();
+  setTimeout(()=>{rp.classList.remove('leave','focus');rpLeaving=false},850)}
+const rpScrollTo=y=>rps.scrollTo({top:y,behavior:RM?'auto':'smooth'});
+const rowY=()=>brands.offsetTop+range(brands)*.04;
+/* browser history without page loads (History API): opening a room and opening a product each add an entry,
+   so the browser's Back/Forward buttons step product → brands → rooms smoothly inside the same page */
+let rpDepth=0,popNext=false;
+if('scrollRestoration' in history)history.scrollRestoration='manual';   /* Back/Forward must not yank the main page back to an old scroll position */
+function rpPush(st){const h=`#${st.rp}${st.brand?'/'+st.brand:''}`;
+  if(rpDepth>=(st.brand?2:1))history.replaceState(st,'',h);else{history.pushState(st,'',h);rpDepth++}}
+function rpExit(next){if(rpLeaving)return;if(rpDepth>0){popNext=next;history.go(-rpDepth)}else closeRoomPage(next)}
+addEventListener('popstate',e=>{const st=e.state;
+  if(!st||!st.rp){rpDepth=0;if(rpOpen())closeRoomPage(popNext);popNext=false;return}
+  if(!rpOpen()){if(st.rp!==state.cat){state.cat=st.rp;state.brand=CATS[st.rp].brands[0];renderCat()}openRoomPage(false,true)}
+  if(st.brand){rpDepth=2;selectBrand(st.brand);rpScrollTo(brandFocusY())}else{rpDepth=1;rpScrollTo(rowY())}});
+const focusBrand=k=>{selectBrand(k);rpPush({rp:state.cat,brand:k});rpScrollTo(brandFocusY())};
+rps.addEventListener('scroll',()=>{if(rps.scrollTop+rps.clientHeight>=rps.scrollHeight-6)rpExit(true)},{passive:true});
+$('rpBack').onclick=()=>{if(history.state&&history.state.brand)history.back();else rpScrollTo(rowY())};
+$('rpClose').onclick=()=>rpExit(false);
+addEventListener('keydown',e=>{if(e.key==='Escape'&&rpOpen()&&!document.querySelector('.mm.show,.lb.show'))rpExit(false)});
+$('rowLabels').onclick=e=>{const b=e.target.closest('button');if(b)focusBrand(b.dataset.b)};
 let SHAPES={};
 function renderCat(){
   const cat=CATS[state.cat];
@@ -1633,11 +1687,11 @@ function enterRoom(k,origin){if(zooming)return;zooming=true;
   const c=CATS[k],rz=$('roomZoom'),[x,y]=origin||[innerWidth/2,innerHeight/2];
   rz.style.setProperty('--x',x+'px');rz.style.setProperty('--y',y+'px');rz.style.setProperty('--rz',c.soft);rz.style.setProperty('--rzc',c.c);
   $('rzSub').textContent=`Room 0${CAT_KEYS.indexOf(k)+1} · ${c.sub}`;$('rzName').textContent=c.label;
-  const fromHall=onScreen(lu);if(fromHall)luZoomT0=performance.now();
+  const fromHall=onScreen(lu)&&!rpOpen();if(fromHall)luZoomT0=performance.now();
   rz.classList.remove('out','fade');rz.classList.toggle('fade',fromHall);void rz.offsetWidth;
   if(fromHall)setTimeout(()=>rz.classList.add('on'),RM?0:650);else rz.classList.add('on');
   setTimeout(()=>{if(fromHall)luOverview();state.cat=k;state.brand=CATS[k].brands[0];renderCat();stageIntro=performance.now()+250;
-    const y2=brands.offsetTop+range(brands)*.04;if(lenis)lenis.scrollTo(y2,{immediate:true,force:true});else scrollTo({top:y2,behavior:'instant'});
+    if(rpOpen()){rps.scrollTop=rowY();rpDepth=Math.min(rpDepth,1);history.replaceState({rp:k},'',`#${k}`)}else openRoomPage(true);
     setTimeout(()=>rz.classList.add('out'),450);
     setTimeout(()=>{rz.classList.remove('on','out','fade');luZoomT0=0;zooming=false},1350)},RM?50:1150)}
 $('cats').onclick=e=>{const b=e.target.closest('button');if(b&&b.dataset.k!==state.cat){const r=b.getBoundingClientRect();enterRoom(b.dataset.k,[r.left+r.width/2,r.top+r.height/2])}};
@@ -1651,11 +1705,11 @@ canCanvas.addEventListener('pointermove',e=>{
   if(down!==null){dragV=(e.clientX-down)*.006;drag+=dragV;down=e.clientX}
   else if(stageF<.5)canCanvas.style.cursor=hitStage(e)?'pointer':'default';});
 canCanvas.addEventListener('pointerup',e=>{down=null;
-  if(start&&Math.hypot(e.clientX-start[0],e.clientY-start[1])<6&&stageF<.5){const k=hitStage(e);if(k){selectBrand(k);scrollToY(brandFocusY(),1.6)}}
+  if(start&&Math.hypot(e.clientX-start[0],e.clientY-start[1])<6&&stageF<.5){const k=hitStage(e);if(k)focusBrand(k)}
   start=null;});
 let p2=0;
 function updateBrand(t,dt){
-  const target=secProg(brands);p2+=(target-p2)*Math.min(1,dt*(RM?60:6));const p=p2;
+  const target=secProg(brands);p2+=(target-p2)*Math.min(1,dt*(RM?60:6));const p=p2;rp.classList.toggle('focus',target>.2);
   const f=ss(.13,.25,p),e=ss(.3,.62,p)*(1-ss(.93,1,p));stageF=f;
   pop=Math.min(1,pop+dt*(RM?60:2.2));const popS=.6+.4*(1-Math.pow(1-pop,3))+Math.sin(pop*Math.PI)*.05*MOT;
   const w=canCanvas.clientWidth,h=canCanvas.clientHeight,asp=w/h,port=asp<.8;
@@ -1977,7 +2031,7 @@ function loop(now){
   for(const [cur,next] of RECEDE){const r=next.getBoundingClientRect();const k=RM?0:clamp(1-r.top/innerHeight);
     if(k>0&&k<1||cur.style.opacity){cur.style.transform=`translateY(${k*90}px) scale(${1-k*.07})`;cur.style.opacity=1-k*.55}}
   if(onScreen(intro))updateShip(t,dt);else{skip.classList.add('hide');setHdr('mini')}
-  if(onScreen(lu))updateLineup(t,dt);
+  if(onScreen(lu)&&!rpOpen())updateLineup(t,dt);
   if(onScreen(brands))updateBrand(t,dt);
   if(onScreen(legacy))updateLegacy(t);
   if(onScreen(loopEl))updateLoop();
