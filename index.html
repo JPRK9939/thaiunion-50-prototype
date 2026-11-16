@@ -1029,14 +1029,14 @@ function bakeCaustics(size=256){const data=new Uint8Array(size*size*4),TAU=Math.
   const tex=new THREE.DataTexture(data,size,size,THREE.RGBAFormat);tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.magFilter=THREE.LinearFilter;tex.minFilter=THREE.LinearMipmapLinearFilter;tex.generateMipmaps=true;tex.needsUpdate=true;return tex}
 const oceanMat=new THREE.ShaderMaterial({
   uniforms:{uTime:{value:0},uAmp:{value:1},uDeepMix:{value:0},uWake:{value:0},uShip:{value:new THREE.Vector2()},uSun:{value:new THREE.Vector3(.18,.95,-.26).normalize()},
-    uCaus:{value:bakeCaustics()},uFog:{value:new THREE.Color(1,1,1)},uFogNear:{value:110},uFogFar:{value:320}},
+    uCaus:{value:bakeCaustics()},uFish:{value:Array.from({length:16},()=>new THREE.Vector4())},uFog:{value:new THREE.Color(1,1,1)},uFogNear:{value:110},uFogFar:{value:320}},
   vertexShader:`uniform float uTime,uAmp;varying vec3 vW,vN;varying float vJ,vH;
   void main(){vec4 w=modelMatrix*vec4(position,1.);vec2 p=w.xz;vec3 d=vec3(0.);float nx=0.,ny=1.,nz=0.,jxx=1.,jzz=1.,jxz=0.,f,S,C;
   ${WAVES.map(w=>{const QA=w.Q*w.A,WA=w.k*w.A,QWA=w.Q*WA;return `f=${F(w.k)}*dot(vec2(${F(w.dx)},${F(w.dz)}),p)-${F(w.w)}*uTime+${F(w.ph)};S=sin(f)*uAmp;C=cos(f)*uAmp;
   d+=vec3(${F(QA*w.dx)}*C,${F(w.A)}*S,${F(QA*w.dz)}*C);nx-=${F(WA*w.dx)}*C;nz-=${F(WA*w.dz)}*C;ny-=${F(QWA)}*S;
   jxx-=${F(QWA*w.dx*w.dx)}*S;jzz-=${F(QWA*w.dz*w.dz)}*S;jxz-=${F(QWA*w.dx*w.dz)}*S;`}).join('\n  ')}
   w.xyz+=d;vW=w.xyz;vN=vec3(nx,ny,nz);vJ=jxx*jzz-jxz*jxz;vH=d.y;gl_Position=projectionMatrix*viewMatrix*w;}`,
-  fragmentShader:`uniform float uTime,uFogNear,uFogFar,uDeepMix,uWake;uniform vec3 uFog,uSun;uniform vec2 uShip;uniform sampler2D uCaus;varying vec3 vW,vN;varying float vJ,vH;
+  fragmentShader:`uniform vec4 uFish[16];uniform float uTime,uFogNear,uFogFar,uDeepMix,uWake;uniform vec3 uFog,uSun;uniform vec2 uShip;uniform sampler2D uCaus;varying vec3 vW,vN;varying float vJ,vH;
   vec3 sky(vec3 r){return mix(vec3(.88,.95,.99),vec3(.45,.73,.94),pow(clamp(r.y,0.,1.),.55));}
   void main(){vec3 toCam=cameraPosition-vW;float d=length(toCam);vec3 V=toCam/d;float ddx=0.,ddz=0.,f,g;
   ${DETAIL.map(w=>`f=${F(w.k)}*dot(vec2(${F(w.dx)},${F(w.dz)}),vW.xz)-${F(w.w)}*uTime+${F(w.ph)};g=cos(f)*${F(w.A*w.k)}*(1.-smoothstep(${F(w.L*10)},${F(w.L*60)},d));ddx+=g*${F(w.dx)};ddz+=g*${F(w.dz)};`).join('\n  ')}
@@ -1060,7 +1060,12 @@ const oceanMat=new THREE.ShaderMaterial({
   float arms=beh*exp(-pow((wid-(2.+along*.38))/(.8+along*.05),2.))*exp(-along/65.);
   float hull=exp(-pow(max(wid-2.2,0.)/1.1,2.))*(1.-smoothstep(9.,10.5,abs(s.y)))*.9;
   float bow=exp(-dot(vec2(s.x*.55,s.y+9.2),vec2(s.x*.55,s.y+9.2))/5.);
+  /* sea life: a foam collar where a body meets the surface, and a fading trail behind it */
+  float ff=0.;for(int i=0;i<16;i++){vec4 F4=uFish[i];if(F4.w<.01)continue;vec2 q=vW.xz-F4.xy;float r=F4.z;
+    float dd=length(vec2(q.x,q.y*.5));float ring=exp(-pow((dd-r)/(r*.3+.12),2.));
+    float tr=q.y>0.?exp(-q.x*q.x/(r*r*.6+.15))*exp(-q.y/(r*6.+1.))*smoothstep(0.,r*1.2,q.y):0.;ff=max(ff,(ring+tr*.7)*F4.w);}
   float wk=(trail*.85+arms+hull+bow)*uWake;
+  foam=max(foam,smoothstep(.22,.7,ff*(.5+pat*1.2)));
   foam=max(foam,smoothstep(.3,.8,wk*(.45+pat*1.1)));
   col=mix(col,vec3(.97,.99,1.),foam*.92);
   col=mix(col,uFog,smoothstep(uFogNear,uFogFar,d));gl_FragColor=vec4(col,1.);}`
@@ -1288,7 +1293,19 @@ function seaTemplate(kind,gltf,real){const sp=real?SEA_REAL[kind]:SEA_SPEC[kind]
   const tpl=new THREE.Group();tpl.add(turn);seaTpl[kind]={tpl,clips:gltf.animations,clip:real?(sp.clip||''):sp.clip,real}}
 function spawn(kind,o){const T=seaTpl[kind],g=SkeletonUtils.clone(T.tpl);g.visible=false;s1.add(g);
   const mixer=new THREE.AnimationMixer(g),clip=(T.clip&&T.clips.find(c=>c.name.endsWith(T.clip)))||T.clips[0];const act=clip&&mixer.clipAction(clip);if(act){act.play();act.time=Math.random()*clip.duration}
-  const a={kind,g,mixer,act,prev:new THREE.Vector3(),seen:false,...o};sea.push(a);return a}
+  if(act&&o.whale){act.setEffectiveWeight(.35);act.timeScale=.6}   /* whale: a gentle float, not a hard tail stroke */
+  const ghostU=[],meshes=[];g.traverse(m=>{if(m.isMesh)meshes.push(m)});
+  for(const m of meshes){const mk=src=>{const gm=src.clone(),u={uSurf:{value:0},uWater:{value:new THREE.Color('#1d6fbf')}};ghostU.push(u);
+      Object.assign(gm,{transparent:true,depthTest:false,depthWrite:false});
+      gm.onBeforeCompile=sh=>{Object.assign(sh.uniforms,u);
+        sh.vertexShader='varying float vWY;\n'+sh.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\n  vWY=(modelMatrix*vec4(transformed,1.)).y;');
+        sh.fragmentShader='uniform float uSurf;uniform vec3 uWater;varying float vWY;\n'+sh.fragmentShader.replace('#include <dithering_fragment>','#include <dithering_fragment>\n  float dep=uSurf-vWY;if(dep<0.)discard;gl_FragColor.rgb=mix(gl_FragColor.rgb,uWater,clamp(.42+dep*.1,.42,.9));gl_FragColor.a*=clamp(.8-dep*.11,0.,.8);')};
+      gm.customProgramCacheKey=()=>'seaghost';return gm};
+    const gmat=Array.isArray(m.material)?m.material.map(mk):mk(m.material);
+    const gh=m.isSkinnedMesh?new THREE.SkinnedMesh(m.geometry,gmat):new THREE.Mesh(m.geometry,gmat);
+    if(m.isSkinnedMesh){gh.bindMode=m.bindMode;gh.bind(m.skeleton,m.bindMatrix)}
+    gh.position.copy(m.position);gh.quaternion.copy(m.quaternion);gh.scale.copy(m.scale);gh.renderOrder=20;gh.frustumCulled=false;m.parent.add(gh)}
+  const a={kind,g,mixer,act,ghostU,prev:new THREE.Vector3(),seen:false,...o};sea.push(a);return a}
 async function loadSea(){
   try{const ld=new GLTFLoader();
     const http=location.protocol.startsWith('http');
@@ -1299,32 +1316,36 @@ async function loadSea(){
     [[9,-4,0],[11.5,-1,.35],[10,3,.7]].forEach(([x,z,ph])=>spawn('dolphin',{a:.16,b:.31,x,z,ph,T:2.8}));
     for(let i=0;i<8;i++)spawn('tuna',{a:.31,b:.45,x:7+Math.random()*6,z:-8+i*2.2+Math.random(),ph:Math.random(),T:1.5+Math.random()*.5});
     [[9.5,-3,.15],[12,1,.55]].forEach(([x,z,ph])=>spawn('dolphin',{a:.45,b:.56,x,z,ph,T:2.6}));
-    spawn('whale',{a:.55,b:.97,x:12.5,z:1,ph:0,T:8,whale:true});
+    spawn('whale',{a:.6,b:.8,x:12.5,z:1,ph:0,T:9,whale:true});
     seaReady=true}catch(e){console.warn('sea life',e)}}
 const _v=new THREE.Vector3();
-function updateSea(t,dt,p,z){if(!seaReady)return;const tm=t*MOT;
+const fishU=oceanMat.uniforms.uFish.value;
+function updateSea(t,dt,p,z){for(const v of fishU)v.w=0;if(!seaReady)return;const tm=t*MOT;
   for(const a of sea){
     /* presence: rises in when its scroll window opens, dives away when it closes */
     const e=ss(a.a,a.a+.03,p)*(1-ss(a.b-.03,a.b,p));
     if(e<=.001){a.g.visible=false;a.seen=false;continue}
-    a.g.visible=true;a.mixer.update(dt*(a.whale?.55:a.kind==='tuna'?1.6:1.1)*(MOT||.15));
+    a.g.visible=true;a.mixer.update(dt*(a.whale?.5:a.kind==='tuna'?1.6:1.1)*(MOT||.15));
     let x=a.x,y,zr=a.z,fwd;
     const surf=waveH(x,z+zr,tm);
-    if(a.whale){/* slow breathing: back breaks the surface, sinks a little, rises again; drifts beside the ship */
-      const c=(tm/a.T+a.ph)%1,br=Math.sin(c*Math.PI*2);
-      y=surf-.75+br*.35;zr+=Math.sin(tm*.23)*1.4;x+=Math.sin(tm*.17)*.8;fwd=2.2}
+    if(a.whale){/* one pass: rises from the deep, back breaks the surface mid-window, glides down again; a slow breath keeps it alive */
+      const w=clamp((p-a.a)/(a.b-a.a)),up=Math.sin(Math.PI*w),br=Math.sin((tm/a.T+a.ph)*Math.PI*2);
+      y=surf-lerp(4.5,.55,up)+br*.18;zr+=lerp(6,-6,w)+Math.sin(tm*.2)*.6;x+=Math.sin(tm*.15)*.5;fwd=2}
     else{/* leap / porpoise cycle: under → arc out of the water → back under; forward burst while airborne */
       const c=(tm/a.T+a.ph)%1,air=a.kind==='tuna'?.38:.46,u=c/air;
-      const peak=a.kind==='tuna'?1.0:2.6,deep=a.kind==='tuna'?-1.4:-2.4;
+      const peak=a.kind==='tuna'?1.0:2.6,deep=a.kind==='tuna'?-.9:-1.5;
       if(u<1){y=deep*.35+(peak-deep*.35)*Math.sin(Math.PI*u);zr-=u*(a.kind==='tuna'?2:4.5)}else{y=deep;zr-=(1-(c-air)/(1-air))*(a.kind==='tuna'?2:4.5)}
       y+=surf;x+=Math.sin(tm*.7+a.ph*6)*.4;fwd=a.kind==='tuna'?5:6}
-    y-=(1-e)*5;
+    y-=(1-e)*7;
     _v.set(x,y,z+zr);
     /* heading: always forward (-z), pitched by its own rise/fall, banked by its sideways drift */
     if(a.seen){const vy=(y-a.prev.y)/Math.max(dt,1e-3),vx=(x-a.prev.x)/Math.max(dt,1e-3);
       const pitch=Math.atan2(vy,fwd),yaw=Math.atan2(-vx,fwd);
-      a.g.rotation.set(0,0,0);a.g.rotation.order='YXZ';a.g.rotation.y=Math.PI+yaw;a.g.rotation.x=lerp(a.g.userData.px||0,-pitch,Math.min(1,dt*8));a.g.userData.px=a.g.rotation.x;a.g.rotation.z=Math.sin(tm*1.3+a.ph*5)*.06}
-    a.g.position.copy(_v);a.prev.copy(_v);a.seen=true}}
+      a.g.rotation.set(0,0,0);a.g.rotation.order='YXZ';a.g.rotation.y=Math.PI+yaw;a.g.rotation.x=lerp(a.g.userData.px||0,-pitch,Math.min(1,dt*8));a.g.userData.px=a.g.rotation.x;a.g.rotation.z=Math.sin(tm*1.3+a.ph*5)*(a.whale?.02:.06)}
+    a.g.position.copy(_v);a.prev.copy(_v);a.seen=true;
+    for(const u of a.ghostU)u.uSurf.value=surf;
+    const fi=sea.indexOf(a);if(fi<16){const r=a.whale?3.1:a.kind==='tuna'?.45:.75;fishU[fi].set(x,z+zr,r,e*Math.exp(-Math.abs(y-surf)/(a.whale?1.6:1.4)))}}
+  }
 loadSea();
 function updateShip(t,dt){
   const target=secProg(intro);p1+=(target-p1)*Math.min(1,dt*(RM?60:5));const p=p1;
