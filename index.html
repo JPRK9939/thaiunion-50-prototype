@@ -56,6 +56,10 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .hdr a{display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:0 18px;border-radius:999px;font-weight:700;font-size:var(--fs-sm);letter-spacing:.12em;color:var(--navy);text-decoration:none;transition:background var(--d2) var(--ease-out),color var(--d2) var(--ease-out)}
 .hdr a:hover{background:var(--navy);color:#fff}
 .hdr a svg{width:11px;height:11px;flex:none}
+.hdr-fold{flex:none;width:44px;height:44px;margin-left:2px;border-radius:50%;display:grid;place-items:center;color:var(--navy);background:#0d1f450d;transition:background var(--d2) var(--ease-out),color var(--d2),transform var(--d3) var(--ease-out)}
+.hdr-fold:hover{background:var(--navy);color:#fff}
+.hdr-fold svg{width:16px;height:16px}
+.hdr[data-state=mini] .hdr-fold svg{transform:rotate(0)}
 @media (max-width:520px){.hdr{padding:10px 8px}.hdr a{padding:0 11px;font-size:13px;letter-spacing:.06em}.hdr a svg{display:none}}
 
 /* ---------- 1. intro ---------- */
@@ -331,6 +335,11 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .mm-media img.op-logo{position:absolute;left:50%;bottom:22px;width:auto;height:auto;max-width:52%;max-height:58px;object-fit:contain;transform:translateX(-50%);background:#fff;padding:10px 18px;border-radius:14px;box-shadow:0 10px 24px #0d1f4518}
 @media (max-width:760px){.mm-slide:has(.op-media){grid-template-rows:34% 66%}.mm-media img.op-logo{max-height:44px;bottom:14px}.op-media+.mm-copy ul{gap:6px;margin-top:12px}.op-media+.mm-copy li{padding-top:6px}}
 .op-cta{align-self:flex-start;margin-top:22px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--navy);border-bottom:1.5px solid currentColor;padding-bottom:3px;opacity:.55;cursor:not-allowed}
+.oth-tabs{margin-top:22px}
+.oth-tabs button{transition:background var(--d2) var(--ease-out),color var(--d2)}
+.oth-tabs button.on{background:var(--c);color:#fff}
+.ogrid{transition:opacity .25s var(--ease-out),transform .25s var(--ease-out)}
+.ogrid.swap{opacity:0;transform:translateY(10px)}
 @media (max-width:520px){.ogrid{grid-template-columns:1fr 1fr}.ocard b{font-size:19px}}
 
 /* ---------- 6. map ---------- */
@@ -476,6 +485,7 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
     <a href="https://www.thaiunion.com/our-company" target="_blank" rel="noopener">OUR LEGACY<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 9 9 3M4 3h5v5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></a>
     <a href="https://www.thaiunion.com/careers" target="_blank" rel="noopener">OUR TEAM<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 9 9 3M4 3h5v5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></a>
     <a href="https://www.thaiunion.com/sustainability" target="_blank" rel="noopener">OUR FUTURE<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 9 9 3M4 3h5v5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></a>
+    <button class="hdr-fold" id="hdrFold" aria-label="Collapse menu" title="Collapse menu"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 10l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
   </nav>
 </header>
 <button class="skip label" id="skip">Skip intro ↓</button>
@@ -578,6 +588,7 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
     <div class="others">
       <div class="kicker label">The other products</div>
       <h3 class="h2" id="othTitle">More from the Frozen room</h3>
+      <div class="map-tools oth-tabs" id="othTabs" role="group" aria-label="Choose a room"></div>
       <div class="ogrid" id="others"></div>
     </div>
   </div>
@@ -1060,10 +1071,14 @@ const oceanMat=new THREE.ShaderMaterial({
   float arms=beh*exp(-pow((wid-(2.+along*.38))/(.8+along*.05),2.))*exp(-along/65.);
   float hull=exp(-pow(max(wid-2.2,0.)/1.1,2.))*(1.-smoothstep(9.,10.5,abs(s.y)))*.9;
   float bow=exp(-dot(vec2(s.x*.55,s.y+9.2),vec2(s.x*.55,s.y+9.2))/5.);
-  /* sea life: a foam collar where a body meets the surface, and a fading trail behind it */
-  float ff=0.;for(int i=0;i<16;i++){vec4 F4=uFish[i];if(F4.w<.01)continue;vec2 q=vW.xz-F4.xy;float r=F4.z;
-    float dd=length(vec2(q.x,q.y*.5));float ring=exp(-pow((dd-r)/(r*.3+.12),2.));
-    float tr=q.y>0.?exp(-q.x*q.x/(r*r*.6+.15))*exp(-q.y/(r*6.+1.))*smoothstep(0.,r*1.2,q.y):0.;ff=max(ff,(ring+tr*.7)*F4.w);}
+  /* sea life: a small version of the ship's wake — bow foam, foam along the flanks, then a short tail with V arms */
+  float ff=0.;for(int i=0;i<16;i++){vec4 F4=uFish[i];if(F4.w<.01)continue;vec2 q=vW.xz-F4.xy;float r=F4.z,hl=r*2.2,ax=abs(q.x);
+    float flank=exp(-pow(max(ax-r*.45,0.)/(r*.3+.08),2.))*(1.-smoothstep(hl*.8,hl*1.05,abs(q.y)))*.55;
+    vec2 bq=vec2(q.x/(r*.8+.1),(q.y+hl)/(r*.7+.1));float bw=exp(-dot(bq,bq));
+    float u=q.y-hl*.6,L=r*2.6+1.;float tl=0.,arm=0.;
+    if(u>0.){float wd=r*.45+u*.1;tl=exp(-pow(ax/wd,2.))*exp(-u/L)*smoothstep(0.,r*.4,u);
+      arm=exp(-pow((ax-(r*.4+u*.34))/(.18+u*.05),2.))*exp(-u/(L*.7))*.75;}
+    ff=max(ff,max(max(flank,bw),max(tl,arm))*F4.w);}
   float wk=(trail*.85+arms+hull+bow)*uWake;
   foam=max(foam,smoothstep(.22,.7,ff*(.5+pat*1.2)));
   foam=max(foam,smoothstep(.3,.8,wk*(.45+pat*1.1)));
@@ -1255,7 +1270,10 @@ const overlays=[...document.querySelectorAll('[data-r]')].map(el=>{const [a,b]=e
   return{el,a,b,hint:el.classList.contains('hint'),words:[...el.querySelectorAll('.w')]}});
 
 const splash=$('splash'),veil=$('veil'),skip=$('skip'),hdr=$('hdr');
-function setHdr(st){if(hdr.dataset.state!==st){hdr.dataset.state=st;if(st!=='mini'){hdr.classList.remove('open');$('menuBtn').setAttribute('aria-expanded','false')}}}
+/* the visitor can fold the bar any time; once folded it stays folded (the ≡ button still drops the links down) */
+let hdrFolded=false;
+$('hdrFold').onclick=e=>{e.stopPropagation();hdrFolded=true;hdr.classList.remove('open');$('menuBtn').setAttribute('aria-expanded','false');if(hdr.dataset.state==='show')setHdr('mini');$('menuBtn').focus({preventScroll:true})};
+function setHdr(st){if(hdrFolded&&st==='show')st='mini';if(hdr.dataset.state!==st){hdr.dataset.state=st;if(st!=='mini'){hdr.classList.remove('open');$('menuBtn').setAttribute('aria-expanded','false')}}}
 $('menuBtn').onclick=e=>{e.stopPropagation();const o=hdr.classList.toggle('open');$('menuBtn').setAttribute('aria-expanded',o)};
 document.addEventListener('click',e=>{if(!hdr.contains(e.target))hdr.classList.remove('open')});
 addEventListener('keydown',e=>{if(e.key==='Escape')hdr.classList.remove('open')});
@@ -1273,6 +1291,7 @@ const SEA_SPEC={
   dolphin:{len:3.4,clip:'Swim',head:'Head_end',tail:'Tail_end',col:{Top:'#5f7489',Bottom:'#dfe5ea'}},
   tuna:{len:1.7,clip:'Swimming_Normal',head:'Main1',tail:'Main6_end',col:{Tuna_Top:'#1d3a73',Tuna_Main:'#c3ccd6',Tuna_Dark:'#2a3442',Tuna_Fins:'#f2c230',Eyes:'#111'}},
   whale:{len:13,clip:'Swim',head:'Head_end',tail:'Tail_end',col:{Top:'#334563',Bottom:'#cfd5dc'}}};
+const SEA_GHOST=false; /* true draws the underwater part tinted through the ocean */
 const seaTpl={},sea=[];let seaReady=false;
 const b64buf=s=>{const bin=atob(s),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u.buffer};
 /* realistic CC-BY 4.0 models (Sketchfab) loaded from assets/models when served over http; the embedded low-poly set is the file:// fallback.
@@ -1293,8 +1312,8 @@ function seaTemplate(kind,gltf,real){const sp=real?SEA_REAL[kind]:SEA_SPEC[kind]
   const tpl=new THREE.Group();tpl.add(turn);seaTpl[kind]={tpl,clips:gltf.animations,clip:real?(sp.clip||''):sp.clip,real}}
 function spawn(kind,o){const T=seaTpl[kind],g=SkeletonUtils.clone(T.tpl);g.visible=false;s1.add(g);
   const mixer=new THREE.AnimationMixer(g),clip=(T.clip&&T.clips.find(c=>c.name.endsWith(T.clip)))||T.clips[0];const act=clip&&mixer.clipAction(clip);if(act){act.play();act.time=Math.random()*clip.duration}
-  if(act&&o.whale){act.setEffectiveWeight(.35);act.timeScale=.6}   /* whale: a gentle float, not a hard tail stroke */
-  const ghostU=[],meshes=[];g.traverse(m=>{if(m.isMesh)meshes.push(m)});
+  if(act&&o.whale){act.setEffectiveWeight(.18);act.timeScale=.5}   /* whale: a gentle float, not a hard tail stroke */
+  const ghostU=[],meshes=[];if(SEA_GHOST)g.traverse(m=>{if(m.isMesh)meshes.push(m)});
   for(const m of meshes){const mk=src=>{const gm=src.clone(),u={uSurf:{value:0},uWater:{value:new THREE.Color('#1d6fbf')}};ghostU.push(u);
       Object.assign(gm,{transparent:true,depthTest:false,depthWrite:false});
       gm.onBeforeCompile=sh=>{Object.assign(sh.uniforms,u);
@@ -1313,10 +1332,10 @@ async function loadSea(){
       if(http)try{seaTemplate(k,await ld.loadAsync('assets/models/'+SEA_REAL[k].file),true);return}catch(_){}
       seaTemplate(k,await ld.parseAsync(b64buf(SEA_GLB[k]),''),false)}));
     /* [kind, scroll window, side x, z offset from the ship, phase] */
-    [[9,-4,0],[11.5,-1,.35],[10,3,.7]].forEach(([x,z,ph])=>spawn('dolphin',{a:.16,b:.31,x,z,ph,T:2.8}));
-    for(let i=0;i<8;i++)spawn('tuna',{a:.31,b:.45,x:7+Math.random()*6,z:-8+i*2.2+Math.random(),ph:Math.random(),T:1.5+Math.random()*.5});
-    [[9.5,-3,.15],[12,1,.55]].forEach(([x,z,ph])=>spawn('dolphin',{a:.45,b:.56,x,z,ph,T:2.6}));
-    spawn('whale',{a:.6,b:.8,x:12.5,z:1,ph:0,T:9,whale:true});
+    /* nothing surfaces until the ASIA chapter has been told; then they arrive one after another */
+    [[9,-4,0],[11.5,-1,.35],[10,3,.7]].forEach(([x,z,ph])=>spawn('dolphin',{a:.64,b:.72,x,z,ph,T:2.8}));
+    for(let i=0;i<8;i++)spawn('tuna',{a:.7,b:.78,x:7+Math.random()*6,z:-8+i*2.2+Math.random(),ph:Math.random(),T:1.5+Math.random()*.5});
+    spawn('whale',{a:.76,b:.9,x:12.5,z:1,ph:0,T:9,whale:true});
     seaReady=true}catch(e){console.warn('sea life',e)}}
 const _v=new THREE.Vector3();
 const fishU=oceanMat.uniforms.uFish.value;
@@ -1326,25 +1345,28 @@ function updateSea(t,dt,p,z){for(const v of fishU)v.w=0;if(!seaReady)return;cons
     const e=ss(a.a,a.a+.03,p)*(1-ss(a.b-.03,a.b,p));
     if(e<=.001){a.g.visible=false;a.seen=false;continue}
     a.g.visible=true;a.mixer.update(dt*(a.whale?.5:a.kind==='tuna'?1.6:1.1)*(MOT||.15));
+    /* anchored in the sea, not to the ship: it meets the ship mid-window and drifts forward at ~30% of the ship's speed, so the ship sails past */
+    if(a.zMid==null)a.zMid=shipZ((a.a+a.b)/2);
+    const base=a.zMid+(z-a.zMid)*.3;
     let x=a.x,y,zr=a.z,fwd;
-    const surf=waveH(x,z+zr,tm);
+    const surf=waveH(x,base+zr,tm);
     if(a.whale){/* one pass: rises from the deep, back breaks the surface mid-window, glides down again; a slow breath keeps it alive */
       const w=clamp((p-a.a)/(a.b-a.a)),up=Math.sin(Math.PI*w),br=Math.sin((tm/a.T+a.ph)*Math.PI*2);
-      y=surf-lerp(4.5,.55,up)+br*.18;zr+=lerp(6,-6,w)+Math.sin(tm*.2)*.6;x+=Math.sin(tm*.15)*.5;fwd=2}
+      y=surf*.25-lerp(4.5,.55,up)+br*.05;zr+=Math.sin(tm*.2)*.6;x+=Math.sin(tm*.15)*.5;fwd=2}
     else{/* leap / porpoise cycle: under → arc out of the water → back under; forward burst while airborne */
       const c=(tm/a.T+a.ph)%1,air=a.kind==='tuna'?.38:.46,u=c/air;
       const peak=a.kind==='tuna'?1.0:2.6,deep=a.kind==='tuna'?-.9:-1.5;
       if(u<1){y=deep*.35+(peak-deep*.35)*Math.sin(Math.PI*u);zr-=u*(a.kind==='tuna'?2:4.5)}else{y=deep;zr-=(1-(c-air)/(1-air))*(a.kind==='tuna'?2:4.5)}
       y+=surf;x+=Math.sin(tm*.7+a.ph*6)*.4;fwd=a.kind==='tuna'?5:6}
     y-=(1-e)*7;
-    _v.set(x,y,z+zr);
+    _v.set(x,y,base+zr);
     /* heading: always forward (-z), pitched by its own rise/fall, banked by its sideways drift */
     if(a.seen){const vy=(y-a.prev.y)/Math.max(dt,1e-3),vx=(x-a.prev.x)/Math.max(dt,1e-3);
-      const pitch=Math.atan2(vy,fwd),yaw=Math.atan2(-vx,fwd);
+      const pitch=a.whale?clamp(Math.atan2(vy,fwd)*.08,-.03,.03):Math.atan2(vy,fwd),yaw=Math.atan2(-vx,fwd);
       a.g.rotation.set(0,0,0);a.g.rotation.order='YXZ';a.g.rotation.y=Math.PI+yaw;a.g.rotation.x=lerp(a.g.userData.px||0,-pitch,Math.min(1,dt*8));a.g.userData.px=a.g.rotation.x;a.g.rotation.z=Math.sin(tm*1.3+a.ph*5)*(a.whale?.02:.06)}
     a.g.position.copy(_v);a.prev.copy(_v);a.seen=true;
     for(const u of a.ghostU)u.uSurf.value=surf;
-    const fi=sea.indexOf(a);if(fi<16){const r=a.whale?3.1:a.kind==='tuna'?.45:.75;fishU[fi].set(x,z+zr,r,e*Math.exp(-Math.abs(y-surf)/(a.whale?1.6:1.4)))}}
+    const fi=sea.indexOf(a);if(fi<16){const r=a.whale?3.1:a.kind==='tuna'?.45:.75;fishU[fi].set(x,base+zr,r,e*Math.exp(-Math.abs(y-surf)/(a.whale?1.6:1.4)))}}
   }
 loadSea();
 function updateShip(t,dt){
@@ -1390,7 +1412,7 @@ function updateShip(t,dt){
   const ready=$('loader').classList.contains('done');
   for(const o of overlays)o.el.classList.toggle('play',ready&&p>=o.a&&p<o.b);
   skip.classList.toggle('hide',p>.86);
-  setHdr(p>.12&&p<.9?'show':p<=.12?'hide':'mini');
+  setHdr(p<=.12?'hide':p<.17?'show':'mini');   /* full bar while docked; folds as the ship pulls away */
   updateSea(t,dt,p,z);
   r1.render(s1,cam1);
 }
@@ -1507,15 +1529,25 @@ function renderCat(){
   document.documentElement.style.setProperty('--cat',cat.c);document.documentElement.style.setProperty('--catSoft',cat.soft);
   $('cats').innerHTML=CAT_KEYS.map(k=>`<button style="--c:${CATS[k].c}" class="${k===state.cat?'on':''}" aria-pressed="${k===state.cat}" data-k="${k}">${CATS[k].label}</button>`).join('');
   $('catTitle').innerHTML=`<small>Room 0${CAT_KEYS.indexOf(state.cat)+1} · ${cat.sub}</small>${cat.label}`;
-  tintRoom(cat.soft);$('othTitle').textContent='More from the '+cat.label+' room';fx($('catTitle'));fx($('othTitle'));
+  tintRoom(cat.soft);fx($('catTitle'));
   const shapes=SHAPES={can:'<rect x="14" y="34" width="92" height="56" rx="12"/><rect x="14" y="30" width="92" height="10" rx="5" opacity=".7"/><rect x="14" y="50" width="92" height="22" fill="#fff" opacity=".85"/>',
     jar:'<rect x="30" y="14" width="60" height="18" rx="5"/><rect x="24" y="30" width="72" height="80" rx="14"/><rect x="24" y="52" width="72" height="30" fill="#fff" opacity=".85"/>',
     pouch:'<rect x="52" y="6" width="16" height="12" rx="3"/><path d="M30 18h60l8 86a8 8 0 0 1-8 8H30a8 8 0 0 1-8-8z"/><rect x="34" y="44" width="52" height="26" rx="6" fill="#fff" opacity=".85"/>',
     tray:'<path d="M10 52h100l-8 38a8 8 0 0 1-8 6H26a8 8 0 0 1-8-6z"/><rect x="6" y="44" width="108" height="12" rx="6"/><rect x="30" y="64" width="60" height="16" rx="5" fill="#fff" opacity=".85"/>'};
-  $('others').innerHTML=cat.others.map((o,i)=>`<article class="ocard" style="--c:${o[1]};--i:${i}" data-oi="${i}" tabindex="0" role="button" aria-label="Open ${o[0]} details" data-reveal><div class="art"><svg viewBox="0 0 120 120" fill="${o[1]}" aria-hidden="true">${shapes[o[2]]}</svg></div><div><b>${o[0]}</b><span>Discover →</span></div></article>`).join('');
-  observeReveal($('others'));
+  renderOthers(state.cat);
   buildStage();renderBrand();setMapTab(state.cat);
 }
+/* "The other products": its own room tabs, so visitors can switch here without scrolling back up to the room picker */
+let othCat='frozen',othT=0;
+$('othTabs').innerHTML=CAT_KEYS.map(k=>`<button data-k="${k}" style="--c:${CATS[k].c}">${CATS[k].label}</button>`).join('');
+$('othTabs').onclick=e=>{const b=e.target.closest('button');if(b&&b.dataset.k!==othCat)renderOthers(b.dataset.k,true)};
+function renderOthers(k,animate=false){othCat=k;
+  [...$('othTabs').children].forEach(b=>{b.classList.toggle('on',b.dataset.k===k);b.setAttribute('aria-pressed',b.dataset.k===k)});
+  const shapes=SHAPES,fill=()=>{$('othTitle').textContent='More from the '+CATS[k].label+' room';fx($('othTitle'));
+  $('others').innerHTML=CATS[k].others.map((o,i)=>`<article class="ocard" style="--c:${o[1]};--i:${i}" data-oi="${i}" tabindex="0" role="button" aria-label="Open ${o[0]} details" data-reveal><div class="art"><svg viewBox="0 0 120 120" fill="${o[1]}" aria-hidden="true">${shapes[o[2]]}</svg></div><div><b>${o[0]}</b><span>Discover →</span></div></article>`).join('');
+    observeReveal($('others'));
+    $('others').classList.remove('swap')};
+  clearTimeout(othT);if(animate&&!RM){$('others').classList.add('swap');othT=setTimeout(fill,260)}else fill()}
 function renderBrand(){
   const b=BR[state.brand],cat=CATS[state.cat];
   $('chips').innerHTML=cat.brands.map(k=>`<button class="${k===state.brand?'on':''}" aria-pressed="${k===state.brand}" data-b="${k}">${BR[k].name}</button>`).join('');
@@ -1829,7 +1861,7 @@ function mmSync(){[...mmTrack.children].forEach((sl,j)=>sl.classList.toggle('cur
 function openMilestone(card){const i=+card.dataset.mi;openMM(card,mmSlides(BR[state.brand],i),0,'Milestone story')}
 const OLOGO={'Chicken of the Sea Frozen':'cos','Fisho':'fisho','Monori':'monori','Thammachart':'tham','Qfresh':'qf','ChangeTer':'chg','Paramount':'par','Gimme Fresh':'gf'};
 const OFMT={can:'Can',pouch:'Pouch',tray:'Tray',jar:'Jar'};
-function otherSlides(){const cat=CATS[state.cat],n=cat.others.length;
+function otherSlides(){const cat=CATS[othCat],n=cat.others.length;
   return cat.others.map(([name,c,t],j)=>{const lg=OLOGO[name],src=lg&&(LOGO_DATA[lg]||`assets/logos/${lg}.png`);
     return `<div class="mm-media op-media" style="--c:${c}"><svg viewBox="0 0 120 120" fill="${c}" aria-hidden="true">${SHAPES[t]}</svg>${src?`<img class="op-logo" src="${src}" alt="${name} logo">`:''}<span class="mm-tag">${cat.label} room · ${String(j+1).padStart(2,'0')} / ${String(n).padStart(2,'0')}</span></div>
      <div class="mm-copy"><span class="label">${cat.sub} · Other products</span><h3>${name}</h3><p>Product range, brand story and where to find ${name}. Final copy and photography to be supplied by the brand team.</p>
