@@ -462,6 +462,10 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .room-zoom{position:fixed;inset:0;z-index:70;pointer-events:none;background:radial-gradient(circle at var(--x,50%) var(--y,50%),#fff 0%,var(--rz,#e3f1fb) 60%);clip-path:circle(0% at var(--x,50%) var(--y,50%));display:grid;place-items:center}
 .room-zoom.on{transition:clip-path 1s var(--ease-io);clip-path:circle(150% at var(--x,50%) var(--y,50%))}
 .room-zoom.out{transition:opacity .8s var(--ease-out);opacity:0}
+/* from the hall: no circle wipe — the camera flies into the frame and the view dissolves into the room colour */
+.room-zoom.fade{clip-path:none;opacity:0;background:radial-gradient(circle at 50% 50%,#fff 0%,var(--rz,#e3f1fb) 70%)}
+.room-zoom.fade.on{transition:opacity .5s var(--ease-io);opacity:1}
+.room-zoom.fade.on.out{transition:opacity .8s var(--ease-out);opacity:0}
 .rz-label{text-align:center;opacity:0;transform:translateY(16px) scale(.96);filter:blur(10px);transition:opacity .6s var(--ease-out) .35s,transform .8s var(--ease-out) .35s,filter .8s var(--ease-out) .35s}
 .room-zoom.on .rz-label{opacity:1;transform:none;filter:none}
 .rz-label small{display:block;font-weight:600;letter-spacing:var(--track);text-transform:uppercase;font-size:var(--fs-xs);color:var(--ink-3)}
@@ -1440,7 +1444,31 @@ skip.onclick=()=>{const y=$('lineup').offsetTop;if(RM){if(lenis)lenis.scrollTo(y
 const lu=$('lineup'),luCanvas=$('lu-canvas'),luStick=$('luStick');
 const r3=makeRenderer(luCanvas,{alpha:true});const s3=studio(r3);
 const cam3=new THREE.PerspectiveCamera(28,1,.1,100);
-const luItems=CAT_KEYS.map((k,i)=>{const pk=buildPack(BR[CATS[k].hero]);const h=new THREE.Group();h.add(pk.g);s3.add(h);h.userData.i=i;const ped=plinth(pk);s3.add(ped);return{k,pk,h,ped}});
+/* museum hall: an empty soft-lit gallery with three portal frames on a gentle arc, each angled its own way;
+   every frame is the doorway into its room and its hero product floats inside it */
+const LU={C:6,R:8,A:.62,FY:-2.6,W:3.7,H:4.8,T:.42,D:1.3};
+const luSoftTex=canvasTex(512,512,(g,w,h)=>{const gr=g.createRadialGradient(w/2,h*.42,w*.04,w/2,h/2,w*.78);gr.addColorStop(0,'#ffffff');gr.addColorStop(.55,'#f1f3f5');gr.addColorStop(1,'#c6ccd3');g.fillStyle=gr;g.fillRect(0,0,w,h)});
+const luM=(c,e)=>new THREE.MeshStandardMaterial({color:c,map:luSoftTex,emissive:c,emissiveMap:luSoftTex,emissiveIntensity:e,roughness:.95,metalness:0,envMapIntensity:.25});
+const luWall=luM('#eef3f8',.36),luSide=luM('#e4ebf2',.3),luFloor=luM('#e9eef4',.26);
+{const g=new THREE.Group();s3.add(g);const FY=LU.FY,TOP=FY+11;
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry(36,40).rotateX(-Math.PI/2),luFloor);fl.position.set(0,FY,2);g.add(fl);
+  const ce=new THREE.Mesh(new THREE.PlaneGeometry(36,40).rotateX(Math.PI/2),luSide);ce.position.set(0,TOP,2);g.add(ce);
+  const bw=new THREE.Mesh(new THREE.PlaneGeometry(36,11),luWall);bw.position.set(0,FY+5.5,-9);g.add(bw);
+  [-1,1].forEach(sd=>{const w=new THREE.Mesh(new THREE.PlaneGeometry(40,11).rotateY(-sd*Math.PI/2),luSide);w.position.set(sd*16,FY+5.5,2);g.add(w)});
+  s3.add(new THREE.HemisphereLight(0xffffff,0xd9e1ea,.8));}
+const frameMat=new THREE.MeshStandardMaterial({color:'#f5f6f8',roughness:.85,metalness:0,envMapIntensity:.4});
+function portal(i,k){const a=(i-1)*LU.A,{W,H,T,D}=LU,g=new THREE.Group();
+  g.position.set(Math.sin(a)*LU.R,LU.FY+H/2,LU.C-Math.cos(a)*LU.R);g.rotation.y=-a;
+  const box=(w,h,d,x,y,z,m=frameMat)=>{const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);b.position.set(x,y,z);g.add(b);return b};
+  box(W,T,D,0,H/2-T/2,0);box(W,T,D,0,-H/2+T/2,0);box(T,H,D,-W/2+T/2,0,0);box(T,H,D,W/2-T/2,0,0);
+  /* lit interior: a glowing back panel in the room's own colour (the doorway) and a light strip along the top */
+  const glow=new THREE.MeshBasicMaterial({color:new THREE.Color(CATS[k].soft).lerp(new THREE.Color(CATS[k].c),.18)});
+  box(W-2*T,H-2*T,.04,0,0,-D/2+.04,glow);
+  box(W-2*T-.1,.05,D*.85,0,H/2-T-.03,0,new THREE.MeshBasicMaterial({color:'#ffffff'}));
+  const pl=new THREE.PointLight(0xffffff,9,7,1.6);pl.position.set(0,H/2-T-.4,.3);g.add(pl);
+  s3.add(g);return{g,a}}
+const luItems=CAT_KEYS.map((k,i)=>{const pk=buildPack(BR[CATS[k].hero]);const h=new THREE.Group();h.add(pk.g);h.userData.i=i;
+  const pt=portal(i,k);pt.g.userData.i=i;h.position.set(0,0,.15);pt.g.add(h);return{k,pk,h,frame:pt.g,a:pt.a}});
 let luAct=0,luShown=-1,luPrev=null,luSwing=0;
 $('luNav').innerHTML=CAT_KEYS.map((k,i)=>`<button style="--c:${CATS[k].c}" data-i="${i}"><span>0${i+1}</span>${CATS[k].label}</button>`).join('');
 const luY=i=>lu.offsetTop+range(lu)*((i+.25)/2.5);
@@ -1462,7 +1490,7 @@ function showLu(i){
 $('luCta').onclick=()=>{const [x,y]=project(luItems[luShown].h,cam3,luCanvas,.2);enterRoom(CAT_KEYS[luShown],[x,y])};
 const ray=new THREE.Raycaster(),ndc=new THREE.Vector2();
 function hitLu(e){const r=luCanvas.getBoundingClientRect();ndc.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);ray.setFromCamera(ndc,cam3);
-  for(const it of luItems){if(ray.intersectObject(it.pk.g,true).length)return it.h.userData.i}return -1}
+  for(const it of luItems){if(ray.intersectObject(it.frame,true).length)return it.frame.userData.i}return -1}
 luCanvas.addEventListener('pointermove',e=>{luCanvas.style.cursor=hitLu(e)>=0?'pointer':'default'});
 luCanvas.addEventListener('click',e=>{const i=hitLu(e);if(i>=0)pickRoom(i)});
 const tmpV=new THREE.Vector3();
@@ -1475,24 +1503,22 @@ function updateLineup(t,dt){
   luAct+=(act-luAct)*Math.min(1,dt*(RM?60:5));
   const ai=Math.round(luAct);if(ai!==luShown)showLu(ai);
   const w=luCanvas.clientWidth,h=luCanvas.clientHeight,asp=w/h,port=asp<.8;
-  const spacing=port?3.1:4.4;
-  const gap=spacing*1.25,rise=port?.3:.55,base=port?-.2:-.5;
-  luItems.forEach((it,i)=>{const d=i-luAct,ad=Math.min(1.6,Math.abs(d));
-    it.h.position.set((i-1)*gap,(i-1)*rise+base,0);
-    const s=lerp(1,.6,Math.min(1,ad))*(port?.82:.86);it.h.scale.setScalar(s);
-    const lean=ad<.5?1:.35;it.h.rotation.set(.2+ptr.sy*.12*lean,ptr.sx*.32*lean,-d*.12-ptr.sx*.05*lean);
+  /* the hall takes on the colour of the room in focus, blending continuously as the camera travels */
+  {const f=clamp(luAct,0,2),i0=Math.floor(Math.min(f,1.999)),c=new THREE.Color(CATS[CAT_KEYS[i0]].soft).lerp(new THREE.Color(CATS[CAT_KEYS[i0+1]].soft),f-i0);
+    [[luWall,0],[luSide,-.04],[luFloor,-.02]].forEach(([m,d])=>{const cc=c.clone().lerp(new THREE.Color('#ffffff'),.18+d);m.color.copy(cc);m.emissive.copy(cc)})}
+  luItems.forEach((it,i)=>{const ad=Math.min(1.6,Math.abs(i-luAct)),lean=ad<.5?1:.35;
+    it.h.scale.setScalar(port?.66:.74);
+    it.h.rotation.set(.12+ptr.sy*.1*lean,ptr.sx*.28*lean,-ptr.sx*.04*lean);
     /* spin is integrated, so changing speed never jumps the angle */
     if(it.spin==null)it.spin=-.6+i*1.3;it.spin+=dt*.35*MOT*lerp(1,.4,ss(.3,.7,ad));it.pk.g.rotation.y=it.spin;
-    it.pk.g.position.y=Math.sin(t*1.2+i)*.04*MOT;
-    it.ped.position.set(it.h.position.x,it.h.position.y+it.ped.userData.top*s,it.h.position.z);it.ped.scale.setScalar(s);
+    it.pk.g.position.y=Math.sin(t*1.2+i)*.08*MOT;
   });
-  /* camera: glides to the product in focus and views each room from its own angle (left room from the left, right from the right),
-     leaning a little further into the direction of travel while it moves */
-  const v=(luAct-(luPrev??luAct))/Math.max(dt,1e-3);luPrev=luAct;luSwing+=(clamp(v*.35,-.22,.22)-luSwing)*Math.min(1,dt*3);
-  const dist=port?19:13.2,fx=(luAct-1)*gap,fy=(luAct-1)*rise,ang=-(luAct-1)*.2+luSwing*MOT;
-  const zt=luZoomT0?ss(0,1,(performance.now()-luZoomT0)/1000):0,ax=luItems[ai].h.position.x,ay=luItems[ai].h.position.y;
-  const cx=fx+Math.sin(ang)*dist,cz=Math.cos(ang)*dist;
-  cam3.position.set(lerp(cx,ax,zt),1.4+fy-zt*.8+(ay-fy)*zt,lerp(cz,dist*.28,zt));cam3.lookAt(lerp(fx,ax,zt),(port?-.4:-.15)*(1-zt)+lerp(fy,ay,zt)+(port?.2:.5)*(1-zt)-(port?.2:.5)*(1-zt),0);
+  /* camera: orbits the arc to stand square in front of the frame in focus; leans a little into the direction of travel */
+  const v=(luAct-(luPrev??luAct))/Math.max(dt,1e-3);luPrev=luAct;luSwing+=(clamp(v*.25,-.16,.16)-luSwing)*Math.min(1,dt*3);
+  const a=(luAct-1)*LU.A,cy=LU.FY+LU.H/2,tx=Math.sin(a)*LU.R,tz=LU.C-Math.cos(a)*LU.R,ca=a+luSwing*MOT,dist=port?25:17;
+  const zt=luZoomT0?ss(0,1,(performance.now()-luZoomT0)/1100):0,ez=zt*zt*(3-2*zt);
+  const near=port?1.2:.9,dd=lerp(dist,near,ez);
+  cam3.position.set(tx-Math.sin(ca)*dd,cy+lerp(1.6,0,ez),tz+Math.cos(ca)*dd);cam3.lookAt(tx,cy-.35*(1-ez),tz);
   r3.render(s3,cam3);
 }
 
@@ -1584,12 +1610,13 @@ function enterRoom(k,origin){if(zooming)return;zooming=true;
   const c=CATS[k],rz=$('roomZoom'),[x,y]=origin||[innerWidth/2,innerHeight/2];
   rz.style.setProperty('--x',x+'px');rz.style.setProperty('--y',y+'px');rz.style.setProperty('--rz',c.soft);rz.style.setProperty('--rzc',c.c);
   $('rzSub').textContent=`Room 0${CAT_KEYS.indexOf(k)+1} · ${c.sub}`;$('rzName').textContent=c.label;
-  if(onScreen(lu))luZoomT0=performance.now();
-  rz.classList.remove('out');void rz.offsetWidth;rz.classList.add('on');
+  const fromHall=onScreen(lu);if(fromHall)luZoomT0=performance.now();
+  rz.classList.remove('out','fade');rz.classList.toggle('fade',fromHall);void rz.offsetWidth;
+  if(fromHall)setTimeout(()=>rz.classList.add('on'),RM?0:650);else rz.classList.add('on');
   setTimeout(()=>{state.cat=k;state.brand=CATS[k].brands[0];renderCat();stageIntro=performance.now()+250;
     const y2=brands.offsetTop+range(brands)*.04;if(lenis)lenis.scrollTo(y2,{immediate:true,force:true});else scrollTo({top:y2,behavior:'instant'});
     setTimeout(()=>rz.classList.add('out'),450);
-    setTimeout(()=>{rz.classList.remove('on','out');luZoomT0=0;zooming=false},1350)},RM?50:1100)}
+    setTimeout(()=>{rz.classList.remove('on','out','fade');luZoomT0=0;zooming=false},1350)},RM?50:1150)}
 $('cats').onclick=e=>{const b=e.target.closest('button');if(b&&b.dataset.k!==state.cat){const r=b.getBoundingClientRect();enterRoom(b.dataset.k,[r.left+r.width/2,r.top+r.height/2])}};
 $('chips').onclick=e=>{const b=e.target.closest('button');if(b)selectBrand(b.dataset.b)};
 let drag=0,dragV=0,down=null,start=null,stageF=0;const tmpP=new THREE.Vector3();
