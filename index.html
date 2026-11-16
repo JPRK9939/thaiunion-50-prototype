@@ -111,11 +111,11 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 
 /* ---------- 2. product sequence (category line-up) ---------- */
 @property --wall{syntax:'<color>';inherits:true;initial-value:#e3f1fb}
-#lineup{height:420vh;position:relative}
+#lineup{height:200vh;position:relative}
 #lineup .stick{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden;--wall:var(--lu-bg,#e3f1fb);transition:--wall 1.1s var(--ease-io)}
 /* gallery room: lit wall with panel joints, skirting line, polished floor */
 .museum{background:linear-gradient(to bottom,color-mix(in srgb,var(--wall) 70%,#ffffff) 0%,var(--wall) 55%,color-mix(in srgb,var(--wall) 90%,#0d1f45) 100%)}
-#lineup .lu-haze{position:absolute;inset:0;z-index:5;pointer-events:none;background:linear-gradient(#fff 0%,#fff 35%,#ffffff00 100%)}
+#lineup .lu-haze{position:absolute;inset:0;z-index:5;pointer-events:none;background:linear-gradient(#fff 0%,#ffffffcc 10%,#ffffff00 34%)}
 #lu-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .lu-info{position:absolute;left:clamp(16px,4vw,56px);top:clamp(86px,13vh,130px);width:min(340px,calc(100vw - 32px));z-index:3}
 .lu-info .label{color:var(--ink-3)}
@@ -135,6 +135,16 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .lu-nav button.on,.cats button.on{background:var(--c);color:#fff}
 .lu-nav button.on span{color:#ffffffcc}
 .lu-cta{position:absolute;right:clamp(16px,4vw,56px);bottom:24px;z-index:4;min-height:48px;padding:0 6px 0 22px;display:inline-flex;align-items:center;gap:14px;border-radius:999px;background:transparent;color:var(--navy);font-weight:600;letter-spacing:.1em;text-transform:uppercase;font-size:var(--fs-sm);border:1.5px solid var(--navy);transition:background var(--d2) var(--ease-out),color var(--d2) var(--ease-out)}
+.lu-info,.lu-quote,.lu-cta{transition:opacity .5s var(--ease-out)}
+#luStick.ov-mode .lu-info,#luStick.ov-mode .lu-quote,#luStick.ov-mode .lu-cta{opacity:0;pointer-events:none}
+.lu-pick{position:absolute;left:50%;top:clamp(86px,14vh,140px);transform:translate(-50%,10px);z-index:3;text-align:center;opacity:0;pointer-events:none;transition:opacity .5s var(--ease-out),transform .6s var(--ease-out)}
+.lu-pick .label{color:var(--ink-3)}
+.lu-pick b{display:block;margin-top:8px;font-weight:600;font-size:var(--fs-lg);color:var(--navy)}
+#luStick.ov-mode .lu-pick{opacity:1;transform:translate(-50%,0)}
+.lu-back{position:absolute;left:50%;top:72px;transform:translateX(-50%);z-index:6;display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 14px 0 8px;border-radius:999px;background:#ffffffd9;backdrop-filter:blur(8px);box-shadow:0 6px 16px #0d1f4514;color:var(--navy);font-weight:600;font-size:13px;letter-spacing:.1em;text-transform:uppercase;transition:opacity .4s var(--ease-out),background var(--d2)}
+.lu-back i{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--navy);color:#fff;font-style:normal}
+.lu-back:hover{background:#fff}
+#luStick.ov-mode .lu-back{opacity:0;pointer-events:none}
 .lu-cta i{display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:var(--navy);color:#fff;font-style:normal;transition:transform var(--d3) var(--ease-out)}
 .lu-cta:hover{background:var(--navy);color:#fff}.lu-cta:hover i{transform:translateX(4px);background:#fff;color:var(--navy)}
 
@@ -521,13 +531,15 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 
 <!-- ============ 2. PRODUCT SEQUENCE: three hero products, one per business ============ -->
 <section id="lineup" aria-label="Choose a business">
-  <div class="stick museum" id="luStick">
+  <div class="stick museum ov-mode" id="luStick">
     <div class="lu-haze" id="luHaze" aria-hidden="true"></div>
     <canvas id="lu-canvas" role="img" aria-label="Hero products of the three Thai Union businesses"></canvas>
     <div class="lu-info" id="luInfo"></div>
     <div class="lu-quote" id="luQuote"></div>
     <button class="lu-cta" id="luCta">Enter the room<i aria-hidden="true">→</i></button>
     <div class="lu-nav" id="luNav" role="group" aria-label="Businesses"></div>
+    <div class="lu-pick" id="luPick"><span class="label">Three rooms · Thai Union businesses</span><b>Choose a room to explore</b></div>
+    <button class="lu-back" id="luBack" aria-label="Back to all rooms"><i aria-hidden="true">←</i>All rooms</button>
   </div>
 </section>
 
@@ -1473,7 +1485,16 @@ let luAct=0,luShown=-1,luPrev=null,luSwing=0;
 $('luNav').innerHTML=CAT_KEYS.map((k,i)=>`<button style="--c:${CATS[k].c}" data-i="${i}"><span>0${i+1}</span>${CATS[k].label}</button>`).join('');
 const luY=i=>lu.offsetTop+range(lu)*((i+.25)/2.5);
 /* picking a room: first click glides it to the centre; clicking it again once centred walks in */
-function pickRoom(i){if(zooming)return;if(i===luShown&&Math.abs(luAct-i)<.05){enterRoom(CAT_KEYS[i],project(luItems[i].h,cam3,luCanvas,.2));return}scrollToY(luY(i),1.3)}
+/* the hall opens as an overview of all three frames; clicking a frame zooms to it, clicking a neighbour slides across,
+   clicking the frame in focus again walks in; the small "All rooms" button (or Esc) pulls back out */
+let luMode='overview',luTarget=0,luOv=1;
+function luFocus(i){luMode='focus';luTarget=i;luStick.classList.remove('ov-mode')}
+function luOverview(){luMode='overview';luStick.classList.add('ov-mode')}
+function pickRoom(i){if(zooming)return;
+  if(luMode==='focus'&&i===luTarget&&Math.abs(luAct-i)<.05&&luOv<.05){enterRoom(CAT_KEYS[i],project(luItems[i].h,cam3,luCanvas,.2));return}
+  luFocus(i)}
+$('luBack').onclick=luOverview;
+addEventListener('keydown',e=>{if(e.key==='Escape'&&luMode==='focus'&&onScreen(lu)&&!zooming)luOverview()});
 $('luNav').onclick=e=>{const b=e.target.closest('button');if(b)pickRoom(+b.dataset.i)};
 function showLu(i){
   const k=CAT_KEYS[i],c=CATS[k],hero=BR[c.hero];luShown=i;
@@ -1497,10 +1518,8 @@ const tmpV=new THREE.Vector3();
 function project(obj,cam,canvas,yOff=0){obj.getWorldPosition(tmpV);tmpV.y+=yOff;tmpV.project(cam);return[(tmpV.x*.5+.5)*canvas.clientWidth,(-tmpV.y*.5+.5)*canvas.clientHeight]}
 let p3=0;
 function updateLineup(t,dt){
-  {const r=lu.getBoundingClientRect();$('luHaze').style.opacity=clamp(1-(-r.top)/(innerHeight*.5));}
-  const target=secProg(lu);p3+=(target-p3)*Math.min(1,dt*(RM?60:6));
-  const raw=clamp(p3*2.5-.25,0,2);const fi=Math.min(1,Math.floor(raw));const act=raw>=2?2:fi+ss(.2,.8,raw-fi);
-  luAct+=(act-luAct)*Math.min(1,dt*(RM?60:5));
+  {const r=lu.getBoundingClientRect();$('luHaze').style.opacity=clamp(r.top/(innerHeight*.6));}
+  luAct+=(luTarget-luAct)*Math.min(1,dt*(RM?60:3.2));luOv+=((luMode==='overview'?1:0)-luOv)*Math.min(1,dt*(RM?60:2.6));
   const ai=Math.round(luAct);if(ai!==luShown)showLu(ai);
   const w=luCanvas.clientWidth,h=luCanvas.clientHeight,asp=w/h,port=asp<.8;
   /* the hall takes on the colour of the room in focus, blending continuously as the camera travels */
@@ -1515,10 +1534,14 @@ function updateLineup(t,dt){
   });
   /* camera: orbits the arc to stand square in front of the frame in focus; leans a little into the direction of travel */
   const v=(luAct-(luPrev??luAct))/Math.max(dt,1e-3);luPrev=luAct;luSwing+=(clamp(v*.25,-.16,.16)-luSwing)*Math.min(1,dt*3);
-  const a=(luAct-1)*LU.A,cy=LU.FY+LU.H/2,tx=Math.sin(a)*LU.R,tz=LU.C-Math.cos(a)*LU.R,ca=a+luSwing*MOT,dist=port?25:17;
+  const a=(luAct-1)*LU.A,cy=LU.FY+LU.H/2,tx=Math.sin(a)*LU.R,tz=LU.C-Math.cos(a)*LU.R,ca=a+luSwing*MOT,dist=port?22:13.5;
   const zt=luZoomT0?ss(0,1,(performance.now()-luZoomT0)/1100):0,ez=zt*zt*(3-2*zt);
   const near=port?1.2:.9,dd=lerp(dist,near,ez);
-  cam3.position.set(tx-Math.sin(ca)*dd,cy+lerp(1.6,0,ez),tz+Math.cos(ca)*dd);cam3.lookAt(tx,cy-.35*(1-ez),tz);
+  const fp=new THREE.Vector3(tx-Math.sin(ca)*dd,cy+lerp(1.6,0,ez),tz+Math.cos(ca)*dd),fl=new THREE.Vector3(tx,cy-.35*(1-ez),tz);
+  /* overview: step back until all three frames fit the screen */
+  const hf=2*Math.atan(Math.tan(THREE.MathUtils.degToRad(cam3.fov/2))*asp),dOv=Math.max(7.6/Math.tan(hf/2),3.4/Math.tan(THREE.MathUtils.degToRad(cam3.fov/2)))+1.5;
+  const op=new THREE.Vector3(0,cy+1.9,-1.2+dOv),ol=new THREE.Vector3(0,cy-.3,-1.2),e=luOv*luOv*(3-2*luOv);
+  cam3.position.copy(fp.lerp(op,e));cam3.lookAt(fl.lerp(ol,e));
   r3.render(s3,cam3);
 }
 
@@ -1613,7 +1636,7 @@ function enterRoom(k,origin){if(zooming)return;zooming=true;
   const fromHall=onScreen(lu);if(fromHall)luZoomT0=performance.now();
   rz.classList.remove('out','fade');rz.classList.toggle('fade',fromHall);void rz.offsetWidth;
   if(fromHall)setTimeout(()=>rz.classList.add('on'),RM?0:650);else rz.classList.add('on');
-  setTimeout(()=>{state.cat=k;state.brand=CATS[k].brands[0];renderCat();stageIntro=performance.now()+250;
+  setTimeout(()=>{if(fromHall)luOverview();state.cat=k;state.brand=CATS[k].brands[0];renderCat();stageIntro=performance.now()+250;
     const y2=brands.offsetTop+range(brands)*.04;if(lenis)lenis.scrollTo(y2,{immediate:true,force:true});else scrollTo({top:y2,behavior:'instant'});
     setTimeout(()=>rz.classList.add('out'),450);
     setTimeout(()=>{rz.classList.remove('on','out','fade');luZoomT0=0;zooming=false},1350)},RM?50:1150)}
